@@ -1,0 +1,6 @@
+{
+  "name": "MedSync Mobile - Real-Time Adherence & Medicine Analytics",
+  "description": "Mobile medication adherence dashboard featuring real-time compliance telemetry, interactive dose schedules, smart bottle sync, and detailed intake analytics.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
