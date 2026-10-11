@@ -12,8 +12,10 @@ import {
   HardDrive,
   UserCheck,
   Trash2,
-  User
+  User,
+  Share2
 } from 'lucide-react';
+import { ShareAppModal } from './ShareAppModal';
 
 export const LoginScreen: React.FC = () => {
   const { login, loadDemoData, clearAllUserData } = useMedSync();
@@ -23,6 +25,7 @@ export const LoginScreen: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
   const [disclaimerConfirmed, setDisclaimerConfirmed] = useState(false);
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
 
@@ -263,12 +266,29 @@ export const LoginScreen: React.FC = () => {
             <span>Or load example sample data for preview</span>
           </button>
         </div>
+
+        {/* Short Link & QR Code Button */}
+        <div className="pt-2 border-t border-slate-100 flex justify-center">
+          <button
+            type="button"
+            onClick={() => setIsShareModalOpen(true)}
+            className="text-xs font-bold text-emerald-800 hover:text-emerald-950 flex items-center gap-1.5 py-1.5 px-3 rounded-xl hover:bg-emerald-50 transition-colors cursor-pointer"
+          >
+            <Share2 className="w-3.5 h-3.5" />
+            <span>Short Link &amp; Scan with Phone QR</span>
+          </button>
+        </div>
       </div>
 
       {/* Security & Local Data Notice */}
       <div className="text-center text-[11px] font-semibold text-slate-500 pb-4">
         🔒 All medical data &amp; schedules are safely stored in your browser's local storage.
       </div>
+
+      <ShareAppModal
+        isOpen={isShareModalOpen}
+        onClose={() => setIsShareModalOpen(false)}
+      />
     </div>
   );
 };

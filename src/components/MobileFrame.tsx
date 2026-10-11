@@ -15,8 +15,10 @@ import {
   Type,
   Sun,
   LogOut,
-  Trash2
+  Trash2,
+  Share2
 } from 'lucide-react';
+import { ShareAppModal } from './ShareAppModal';
 
 interface MobileFrameProps {
   children: React.ReactNode;
@@ -24,6 +26,7 @@ interface MobileFrameProps {
 
 export const MobileFrame: React.FC<MobileFrameProps> = ({ children }) => {
   const [isDeviceMockup, setIsDeviceMockup] = useState(true);
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const {
     soundEnabled,
     setSoundEnabled,
@@ -107,6 +110,16 @@ export const MobileFrame: React.FC<MobileFrameProps> = ({ children }) => {
             title={soundEnabled ? 'Mute sound chimes' : 'Enable sound chimes'}
           >
             {soundEnabled ? <Volume2 className="w-4 h-4 text-emerald-700" /> : <VolumeX className="w-4 h-4 text-slate-400" />}
+          </button>
+
+          {/* Share App & QR Short Link */}
+          <button
+            onClick={() => setIsShareModalOpen(true)}
+            className="px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border-2 border-emerald-300 font-extrabold text-xs flex items-center gap-1.5 transition-colors shadow-sm cursor-pointer"
+            title="Get short URL, share link, and scan QR code"
+          >
+            <Share2 className="w-3.5 h-3.5 text-emerald-700" />
+            <span>Short Link &amp; QR</span>
           </button>
 
           {/* Quick Simulate Trigger */}
@@ -249,6 +262,11 @@ export const MobileFrame: React.FC<MobileFrameProps> = ({ children }) => {
           </div>
         )}
       </main>
+
+      <ShareAppModal
+        isOpen={isShareModalOpen}
+        onClose={() => setIsShareModalOpen(false)}
+      />
     </div>
   );
 };
