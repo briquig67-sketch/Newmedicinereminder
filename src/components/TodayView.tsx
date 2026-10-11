@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useMedSync } from '../context/MedSyncContext';
 import { 
   CheckCircle2, 
@@ -8,13 +8,17 @@ import {
   Sparkles, 
   RotateCcw, 
   BellOff, 
-  Zap,
-  BatteryMedium,
-  Check,
-  LogOut,
-  ShieldCheck
+  Zap, 
+  BatteryMedium, 
+  Check, 
+  LogOut, 
+  ShieldCheck,
+  Plus,
+  Pill,
+  Trash2
 } from 'lucide-react';
 import { DoseLog } from '../types';
+import { AddMedicineModal } from './AddMedicineModal';
 
 export const TodayView: React.FC = () => {
   const {
@@ -30,8 +34,12 @@ export const TodayView: React.FC = () => {
     medicines,
     seniorMode,
     currentUser,
-    logout
+    logout,
+    addMedicine,
+    clearAllUserData
   } = useMedSync();
+
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
 
   // Generate 7-day strip around today
   const dateStrip = useMemo(() => {
@@ -105,33 +113,28 @@ export const TodayView: React.FC = () => {
       <div className="flex items-center justify-between bg-white p-3.5 rounded-2xl border border-slate-200 shadow-sm">
         <div className="flex items-center gap-3">
           <div className="relative">
-            <img
-              src="/src/assets/images/patient_profile_avatar_1791152429334.jpg"
-              alt={currentUser.name}
-              referrerPolicy="no-referrer"
-              className="w-12 h-12 rounded-full object-cover ring-2 ring-emerald-600 shadow-sm"
-              onError={(e) => {
-                const target = e.currentTarget;
-                target.style.display = 'none';
-                if (target.parentElement) {
-                  target.parentElement.innerHTML = `
-                    <div class="w-12 h-12 rounded-full bg-emerald-700 flex items-center justify-center font-bold text-white text-base">
-                      ${currentUser.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
-                    </div>
-                  `;
-                }
-              }}
-            />
+            {currentUser.avatarUrl ? (
+              <img
+                src={currentUser.avatarUrl}
+                alt={currentUser.name || 'Patient'}
+                referrerPolicy="no-referrer"
+                className="w-12 h-12 rounded-full object-cover ring-2 ring-emerald-600 shadow-sm"
+              />
+            ) : (
+              <div className="w-12 h-12 rounded-full bg-emerald-100 border-2 border-emerald-400 flex items-center justify-center font-extrabold text-emerald-900 text-sm shadow-sm">
+                {currentUser.name ? currentUser.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() : 'ME'}
+              </div>
+            )}
             <span className="absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full bg-emerald-600 ring-2 ring-white" />
           </div>
           <div>
             <h1 className="text-lg font-extrabold text-slate-900 tracking-tight leading-tight">
-              Good day, {currentUser.name.split(' ')[0]}
+              {currentUser.name ? `Good day, ${currentUser.name.split(' ')[0]}` : 'Good day'}
             </h1>
             <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-600">
               <span className="text-emerald-700 font-bold">Daily Medicine Plan</span>
               <span aria-hidden="true">·</span>
-              <span>5 Prescriptions</span>
+              <span>{medicines.length} {medicines.length === 1 ? 'Prescription' : 'Prescriptions'}</span>
             </div>
           </div>
         </div>
@@ -301,12 +304,31 @@ export const TodayView: React.FC = () => {
 
       {/* Scheduled Dose Timeline List (Senior-Friendly Card Design) */}
       <div className="space-y-4">
-        {todayDoses.length === 0 ? (
+        {medicines.length === 0 ? (
+          <div className="text-center py-10 bg-white rounded-3xl border-2 border-slate-200 p-6 shadow-sm space-y-3.5">
+            <div className="w-14 h-14 bg-emerald-100 text-emerald-800 rounded-2xl flex items-center justify-center mx-auto shadow-sm">
+              <Pill className="w-8 h-8 stroke-[2.5]" />
+            </div>
+            <div>
+              <h3 className="text-lg font-black text-slate-900">Your Medicine Cabinet is Ready</h3>
+              <p className="text-xs font-semibold text-slate-600 mt-1 max-w-xs mx-auto">
+                No medications are added yet. Tap below to enter your first prescription or vitamin to start tracking your daily doses.
+              </p>
+            </div>
+            <button
+              onClick={() => setIsAddModalOpen(true)}
+              className="min-h-[48px] px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-sm inline-flex items-center gap-2 shadow-md shadow-emerald-700/20 active:scale-95 transition-all cursor-pointer"
+            >
+              <Plus className="w-5 h-5 stroke-[3]" />
+              <span>Add Your First Medicine</span>
+            </button>
+          </div>
+        ) : todayDoses.length === 0 ? (
           <div className="text-center py-10 bg-white rounded-2xl border-2 border-slate-200 p-6 shadow-sm">
             <CheckCircle2 className="w-12 h-12 text-emerald-600 mx-auto mb-2" />
-            <h3 className="text-base font-bold text-slate-900">No medicines scheduled</h3>
+            <h3 className="text-base font-bold text-slate-900">No medicines scheduled for this day</h3>
             <p className="text-xs font-medium text-slate-600 mt-1">
-              There are no prescription doses logged for this date.
+              Select another day on the calendar or add a new scheduled dose time.
             </p>
           </div>
         ) : (
@@ -350,6 +372,12 @@ export const TodayView: React.FC = () => {
           })
         )}
       </div>
+
+      <AddMedicineModal
+        isOpen={isAddModalOpen}
+        onClose={() => setIsAddModalOpen(false)}
+        onAdd={addMedicine}
+      />
     </div>
   );
 };

@@ -15,7 +15,7 @@ import {
 import { DoseLog } from '../types';
 
 export const HistoryView: React.FC = () => {
-  const { doseLogs, analytics, medicines } = useMedSync();
+  const { doseLogs, analytics, medicines, currentUser } = useMedSync();
   const [statusFilter, setStatusFilter] = useState<'all' | 'taken' | 'skipped' | 'smart_bottle'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
@@ -45,7 +45,7 @@ export const HistoryView: React.FC = () => {
     const skipped = doseLogs.filter(d => d.status === 'skipped').length;
 
     return `MEDSYNC PATIENT ADHERENCE SUMMARY REPORT
-Patient: Sarah Chen
+Patient: ${currentUser.name || 'Patient'}
 Report Generated: ${new Date().toLocaleDateString()}
 Overall Adherence Rate: ${analytics.overallAdherenceRate}%
 Active Streak: ${analytics.currentStreakDays} days
@@ -53,17 +53,17 @@ On-Time Compliance: ${analytics.onTimePercentage}%
 Total Doses Logged: ${total} (Taken: ${taken}, Skipped: ${skipped})
 
 PRESCRIPTION ADHERENCE BREAKDOWN:
-${medicines.map(m => {
+${medicines.length > 0 ? medicines.map(m => {
   const logs = doseLogs.filter(l => l.medicineId === m.id);
   const t = logs.filter(l => l.status === 'taken').length;
   const pct = logs.length > 0 ? Math.round((t / logs.length) * 100) : 100;
   return `• ${m.name} (${m.dosage}): ${pct}% compliance (${t}/${logs.length} doses taken) - Current stock: ${m.inventoryRemaining} pills`;
-}).join('\n')}
+}).join('\n') : '• No active prescriptions recorded yet.'}
 
 TELEMETRY VERIFICATION:
 Smart Bottle IoT sensor caps active on ${medicines.filter(m => m.smartBottleConnected).length} containers.
 End of report.`;
-  }, [doseLogs, analytics, medicines]);
+  }, [doseLogs, analytics, medicines, currentUser]);
 
   const handleCopyReport = () => {
     navigator.clipboard.writeText(formattedSummary);

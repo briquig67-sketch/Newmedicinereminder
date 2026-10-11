@@ -466,7 +466,12 @@ export const AnalyticsView: React.FC = () => {
         </div>
 
         <div className="space-y-3">
-          {medicineAnalytics.map(med => (
+          {medicineAnalytics.length === 0 ? (
+            <div className="text-center py-6 text-xs font-semibold text-slate-500 bg-slate-50 rounded-xl p-4 border border-slate-200">
+              No prescriptions tracked yet. Add your medications to view per-prescription adherence and supply countdowns.
+            </div>
+          ) : (
+            medicineAnalytics.map(med => (
             <div key={med.id} className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 space-y-2.5">
               <div className="flex items-start justify-between gap-2">
                 <div>
@@ -527,7 +532,8 @@ export const AnalyticsView: React.FC = () => {
                 </div>
               )}
             </div>
-          ))}
+          )))
+        }
         </div>
       </div>
     </div>

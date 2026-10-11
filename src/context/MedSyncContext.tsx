@@ -20,8 +20,10 @@ interface MedSyncContextType {
   currentUser: UserProfile;
   disclaimerAccepted: boolean;
   setDisclaimerAccepted: (accepted: boolean) => void;
-  login: (email: string, password: string, rememberMe?: boolean) => { success: boolean; error?: string };
+  login: (email: string, password: string, customName?: string, rememberMe?: boolean) => { success: boolean; error?: string };
   logout: () => void;
+  clearAllUserData: () => void;
+  loadDemoData: () => void;
   // Actions
   takeDose: (doseId: string, source?: DoseLog['source']) => void;
   skipDose: (doseId: string, reason?: string) => void;
@@ -322,12 +324,13 @@ const INITIAL_LIVE_FEED: LiveTelemetryEvent[] = [
 ];
 
 export const MedSyncProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  // Default to clean empty slate (no example user data)
   const [medicines, setMedicines] = useState<Medicine[]>(() => {
     const saved = localStorage.getItem('medsync_medicines_v2');
     if (saved) {
       try { return JSON.parse(saved); } catch {}
     }
-    return INITIAL_MEDICINES;
+    return [];
   });
 
   const [doseLogs, setDoseLogs] = useState<DoseLog[]>(() => {
@@ -335,11 +338,17 @@ export const MedSyncProvider: React.FC<{ children: React.ReactNode }> = ({ child
     if (saved) {
       try { return JSON.parse(saved); } catch {}
     }
-    return generateInitialDoseLogs(INITIAL_MEDICINES);
+    return [];
   });
 
   const [selectedDate, setSelectedDate] = useState<string>(getIsoDate());
-  const [liveFeed, setLiveFeed] = useState<LiveTelemetryEvent[]>(INITIAL_LIVE_FEED);
+  const [liveFeed, setLiveFeed] = useState<LiveTelemetryEvent[]>(() => {
+    const saved = localStorage.getItem('medsync_live_feed_v2');
+    if (saved) {
+      try { return JSON.parse(saved); } catch {}
+    }
+    return [];
+  });
   const [isLiveSimulationActive, setIsLiveSimulationActive] = useState<boolean>(true);
   const [soundEnabled, setSoundEnabled] = useState<boolean>(true);
   const [seniorMode, setSeniorMode] = useState<boolean>(true); // Default to Senior Accessibility mode!
@@ -348,17 +357,6 @@ export const MedSyncProvider: React.FC<{ children: React.ReactNode }> = ({ child
     message: string;
     type: 'success' | 'info' | 'warning';
   } | null>(null);
-
-  // Default senior user profile
-  const DEFAULT_USER: UserProfile = useMemo(() => ({
-    name: 'Sarah Chen',
-    email: 'sarah.chen@medsync.care',
-    avatarUrl: '/src/assets/images/patient_profile_avatar_1791152429334.jpg',
-    doctor: 'Dr. Evelyn Reed (Cardiology & Internal Medicine)',
-    emergencyContact: 'David Chen (Son)',
-    emergencyPhone: '(555) 234-5678',
-    allergies: ['Penicillin', 'Sulfa drugs']
-  }), []);
 
   // Authentication & Disclaimer states stored locally
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
@@ -378,35 +376,41 @@ export const MedSyncProvider: React.FC<{ children: React.ReactNode }> = ({ child
       try { return JSON.parse(savedUser); } catch {}
     }
     return {
-      name: 'Sarah Chen',
-      email: 'sarah.chen@medsync.care',
-      avatarUrl: '/src/assets/images/patient_profile_avatar_1791152429334.jpg',
-      doctor: 'Dr. Evelyn Reed (Cardiology & Internal Medicine)',
-      emergencyContact: 'David Chen (Son)',
-      emergencyPhone: '(555) 234-5678',
-      allergies: ['Penicillin', 'Sulfa drugs']
+      name: '',
+      email: '',
+      doctor: '',
+      emergencyContact: '',
+      emergencyPhone: '',
+      allergies: []
     };
   });
 
-  const login = useCallback((email: string, password: string, rememberMe = true) => {
+  const login = useCallback((email: string, password: string, customName?: string, rememberMe = true) => {
     const trimmedEmail = email.trim();
     if (!trimmedEmail || !password) {
-      return { success: false, error: 'Please enter both username/email and password.' };
+      return { success: false, error: 'Please enter both your name/email and password.' };
     }
     if (password.length < 4) {
-      return { success: false, error: 'Password must be at least 4 characters long.' };
+      return { success: false, error: 'Password or PIN must be at least 4 characters long.' };
     }
 
-    let displayName = 'Sarah Chen';
-    if (!trimmedEmail.toLowerCase().includes('sarah')) {
-      const prefix = trimmedEmail.split('@')[0].split('.');
-      displayName = prefix.map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(' ') || 'Patient';
+    let displayName = customName?.trim() || '';
+    if (!displayName) {
+      if (trimmedEmail.toLowerCase().includes('sarah')) {
+        displayName = 'Sarah Chen';
+      } else {
+        const prefix = trimmedEmail.split('@')[0].split('.');
+        displayName = prefix.map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(' ') || 'Patient';
+      }
     }
 
     const updatedUser: UserProfile = {
-      ...DEFAULT_USER,
       name: displayName,
       email: trimmedEmail,
+      doctor: '',
+      emergencyContact: '',
+      emergencyPhone: '',
+      allergies: []
     };
 
     setCurrentUser(updatedUser);
@@ -430,12 +434,61 @@ export const MedSyncProvider: React.FC<{ children: React.ReactNode }> = ({ child
     } catch {}
 
     return { success: true };
-  }, [DEFAULT_USER]);
+  }, []);
 
   const logout = useCallback(() => {
     setIsAuthenticated(false);
     localStorage.removeItem('medsync_is_authenticated_v1');
     sessionStorage.removeItem('medsync_is_authenticated_v1');
+  }, []);
+
+  const clearAllUserData = useCallback(() => {
+    setMedicines([]);
+    setDoseLogs([]);
+    setLiveFeed([]);
+    setCurrentUser({
+      name: '',
+      email: '',
+      doctor: '',
+      emergencyContact: '',
+      emergencyPhone: '',
+      allergies: []
+    });
+    setIsAuthenticated(false);
+    setDisclaimerAccepted(false);
+
+    localStorage.removeItem('medsync_medicines_v2');
+    localStorage.removeItem('medsync_logs_v2');
+    localStorage.removeItem('medsync_live_feed_v2');
+    localStorage.removeItem('medsync_current_user_v1');
+    localStorage.removeItem('medsync_is_authenticated_v1');
+    localStorage.removeItem('medsync_disclaimer_accepted_v1');
+    sessionStorage.clear();
+  }, []);
+
+  const loadDemoData = useCallback(() => {
+    const demoUser: UserProfile = {
+      name: 'Sarah Chen',
+      email: 'sarah.chen@medsync.care',
+      avatarUrl: '/src/assets/images/patient_profile_avatar_1791152429334.jpg',
+      doctor: 'Dr. Evelyn Reed (Cardiology & Internal Medicine)',
+      emergencyContact: 'David Chen (Son)',
+      emergencyPhone: '(555) 234-5678',
+      allergies: ['Penicillin', 'Sulfa drugs']
+    };
+    const demoLogs = generateInitialDoseLogs(INITIAL_MEDICINES);
+
+    setMedicines(INITIAL_MEDICINES);
+    setDoseLogs(demoLogs);
+    setLiveFeed(INITIAL_LIVE_FEED);
+    setCurrentUser(demoUser);
+    setIsAuthenticated(true);
+    setDisclaimerAccepted(true);
+
+    localStorage.setItem('medsync_medicines_v2', JSON.stringify(INITIAL_MEDICINES));
+    localStorage.setItem('medsync_logs_v2', JSON.stringify(demoLogs));
+    localStorage.setItem('medsync_current_user_v1', JSON.stringify(demoUser));
+    localStorage.setItem('medsync_is_authenticated_v1', 'true');
   }, []);
 
   // Sync to local storage
@@ -779,6 +832,8 @@ export const MedSyncProvider: React.FC<{ children: React.ReactNode }> = ({ child
         setDisclaimerAccepted,
         login,
         logout,
+        clearAllUserData,
+        loadDemoData,
         takeDose,
         skipDose,
         snoozeDose,

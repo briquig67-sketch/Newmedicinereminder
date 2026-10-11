@@ -14,7 +14,8 @@ import {
   Sparkles,
   Type,
   Sun,
-  LogOut
+  LogOut,
+  Trash2
 } from 'lucide-react';
 
 interface MobileFrameProps {
@@ -30,6 +31,8 @@ export const MobileFrame: React.FC<MobileFrameProps> = ({ children }) => {
     setSeniorMode,
     isAuthenticated,
     logout,
+    clearAllUserData,
+    loadDemoData,
     resetToSampleData,
     triggerSimulatedCapOpen,
     activeNotification,
@@ -116,11 +119,21 @@ export const MobileFrame: React.FC<MobileFrameProps> = ({ children }) => {
             <span>Simulate Bottle Cap</span>
           </button>
 
-          {/* Reset Demo Data */}
+          {/* Clear All Stored Data */}
           <button
-            onClick={resetToSampleData}
-            className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-900 border border-slate-300 transition-colors"
-            title="Reset to sample medications"
+            onClick={clearAllUserData}
+            className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-rose-50 text-slate-700 hover:text-rose-800 border border-slate-300 hover:border-rose-300 font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
+            title="Clear all stored patient data, prescriptions, and history to start completely fresh"
+          >
+            <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+            <span>Clear All Data</span>
+          </button>
+
+          {/* Load Sample Demo Data */}
+          <button
+            onClick={loadDemoData}
+            className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-900 border border-slate-300 transition-colors cursor-pointer"
+            title="Load sample example data for preview"
           >
             <RotateCcw className="w-4 h-4" />
           </button>
@@ -129,7 +142,7 @@ export const MobileFrame: React.FC<MobileFrameProps> = ({ children }) => {
           {isAuthenticated && (
             <button
               onClick={logout}
-              className="px-3 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-300 font-bold text-xs flex items-center gap-1.5 transition-colors shadow-sm"
+              className="px-3 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-300 font-bold text-xs flex items-center gap-1.5 transition-colors shadow-sm cursor-pointer"
               title="Sign out to Disclaimer and Login screen"
             >
               <LogOut className="w-3.5 h-3.5" />
