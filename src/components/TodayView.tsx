@@ -8,17 +8,19 @@ import {
   Sparkles, 
   RotateCcw, 
   BellOff, 
-  Zap, 
   BatteryMedium, 
   Check, 
   LogOut, 
   ShieldCheck,
   Plus,
   Pill,
-  Trash2
+  Trash2,
+  Pencil
 } from 'lucide-react';
 import { DoseLog } from '../types';
+import { Medicine } from '../types';
 import { AddMedicineModal } from './AddMedicineModal';
+import { EditMedicineModal } from './EditMedicineModal';
 
 export const TodayView: React.FC = () => {
   const {
@@ -30,16 +32,18 @@ export const TodayView: React.FC = () => {
     skipDose,
     snoozeDose,
     undoDose,
-    triggerSimulatedCapOpen,
     medicines,
     seniorMode,
     currentUser,
     logout,
     addMedicine,
+    updateMedicine,
+    deleteMedicine,
     clearAllUserData
   } = useMedSync();
 
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [editingMedicine, setEditingMedicine] = useState<Medicine | null>(null);
 
   // Generate 7-day strip around today
   const dateStrip = useMemo(() => {
@@ -265,42 +269,40 @@ export const TodayView: React.FC = () => {
         </div>
       </div>
 
-      {/* Smart Bottle Live Sync Card */}
-      <div className="bg-white border-2 border-slate-200 rounded-2xl p-3.5 flex items-center justify-between gap-3 shadow-sm">
-        <div className="flex items-center gap-3">
-          <img
-            src="/src/assets/images/smart_pill_bottle_1791152438379.jpg"
-            alt="Smart Bottle"
-            referrerPolicy="no-referrer"
-            className="w-12 h-12 rounded-xl object-cover ring-1 ring-slate-300 shrink-0"
-            onError={(e) => {
-              e.currentTarget.style.display = 'none';
-            }}
-          />
-          <div>
-            <div className="flex items-center gap-1.5">
-              <span className="text-xs font-bold text-slate-900">Smart Pill Bottle Connected</span>
-              <span className="w-2 h-2 rounded-full bg-emerald-600 animate-pulse" />
-            </div>
-            <div className="flex items-center gap-2 text-xs font-medium text-slate-600 mt-0.5">
-              <span>{connectedBottles.length} Cap Sensors Active</span>
-              <span aria-hidden="true">·</span>
-              <span className="flex items-center gap-1 font-semibold text-emerald-800">
-                <BatteryMedium className="w-3.5 h-3.5 text-emerald-700" /> 92%
-              </span>
+      {/* Smart Bottle Live Sync Card (when connected) */}
+      {connectedBottles.length > 0 && (
+        <div className="bg-white border-2 border-slate-200 rounded-2xl p-3.5 flex items-center justify-between gap-3 shadow-sm">
+          <div className="flex items-center gap-3">
+            <img
+              src="/src/assets/images/smart_pill_bottle_1791152438379.jpg"
+              alt="Smart Bottle"
+              referrerPolicy="no-referrer"
+              className="w-12 h-12 rounded-xl object-cover ring-1 ring-slate-300 shrink-0"
+              onError={(e) => {
+                e.currentTarget.style.display = 'none';
+              }}
+            />
+            <div>
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs font-bold text-slate-900">Smart Pill Bottle Connected</span>
+                <span className="w-2 h-2 rounded-full bg-emerald-600 animate-pulse" />
+              </div>
+              <div className="flex items-center gap-2 text-xs font-medium text-slate-600 mt-0.5">
+                <span>{connectedBottles.length} Cap Sensors Active</span>
+                <span aria-hidden="true">·</span>
+                <span className="flex items-center gap-1 font-semibold text-emerald-800">
+                  <BatteryMedium className="w-3.5 h-3.5 text-emerald-700" /> 92%
+                </span>
+              </div>
             </div>
           </div>
-        </div>
 
-        <button
-          onClick={() => triggerSimulatedCapOpen()}
-          className="px-3 py-2 bg-emerald-50 hover:bg-emerald-100 active:scale-95 text-emerald-800 border-2 border-emerald-300 rounded-xl text-xs font-bold flex items-center gap-1 transition-all whitespace-nowrap shadow-sm"
-          title="Simulate opening smart bottle cap to log real-time dose"
-        >
-          <Zap className="w-3.5 h-3.5 text-emerald-700 fill-emerald-600" />
-          <span>Test Cap Open</span>
-        </button>
-      </div>
+          <div className="px-3 py-1.5 bg-emerald-50 text-emerald-800 border border-emerald-300 rounded-xl text-xs font-bold flex items-center gap-1.5 shrink-0">
+            <span className="w-2 h-2 rounded-full bg-emerald-600 animate-pulse" />
+            <span>Synced</span>
+          </div>
+        </div>
+      )}
 
       {/* Scheduled Dose Timeline List (Senior-Friendly Card Design) */}
       <div className="space-y-4">
@@ -364,6 +366,10 @@ export const TodayView: React.FC = () => {
                       onSkip={() => skipDose(dose.id, 'Patient skipped dose')}
                       onSnooze={() => snoozeDose(dose.id, 15)}
                       onUndo={() => undoDose(dose.id)}
+                      onEdit={() => {
+                        const med = medicines.find(m => m.id === dose.medicineId);
+                        if (med) setEditingMedicine(med);
+                      }}
                     />
                   ))}
                 </div>
@@ -378,6 +384,14 @@ export const TodayView: React.FC = () => {
         onClose={() => setIsAddModalOpen(false)}
         onAdd={addMedicine}
       />
+
+      <EditMedicineModal
+        isOpen={Boolean(editingMedicine)}
+        medicine={editingMedicine}
+        onClose={() => setEditingMedicine(null)}
+        onSave={updateMedicine}
+        onDelete={deleteMedicine}
+      />
     </div>
   );
 };
@@ -390,6 +404,7 @@ interface DoseCardProps {
   onSkip: () => void;
   onSnooze: () => void;
   onUndo: () => void;
+  onEdit?: () => void;
 }
 
 const DoseCard: React.FC<DoseCardProps> = ({
@@ -399,6 +414,7 @@ const DoseCard: React.FC<DoseCardProps> = ({
   onSkip,
   onSnooze,
   onUndo,
+  onEdit,
 }) => {
   const isTaken = dose.status === 'taken';
   const isSkipped = dose.status === 'skipped';
@@ -426,6 +442,16 @@ const DoseCard: React.FC<DoseCardProps> = ({
             <span className="text-xs font-mono font-bold px-2 py-0.5 rounded-md bg-slate-100 text-slate-800 border border-slate-300 shrink-0">
               {dose.dosage}
             </span>
+            {onEdit && (
+              <button
+                type="button"
+                onClick={onEdit}
+                className="p-1 rounded-lg text-slate-400 hover:text-indigo-700 hover:bg-indigo-50 transition-colors cursor-pointer"
+                title="Edit medicine details"
+              >
+                <Pencil className="w-3.5 h-3.5" />
+              </button>
+            )}
           </div>
 
           <div className="flex items-center gap-2 text-xs font-semibold text-slate-700 mt-1.5">

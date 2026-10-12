@@ -5,20 +5,24 @@ import {
   Plus, 
   Search, 
   Clock, 
-  Calendar, 
   AlertTriangle, 
   Trash2, 
   RotateCw, 
   Radio, 
-  Package
+  Package,
+  Pencil
 } from 'lucide-react';
+import { Medicine } from '../types';
 import { AddMedicineModal } from './AddMedicineModal';
+import { EditMedicineModal } from './EditMedicineModal';
 
 export const MedicinesView: React.FC = () => {
-  const { medicines, deleteMedicine, refillMedicine, addMedicine, seniorMode } = useMedSync();
+  const { medicines, deleteMedicine, updateMedicine, refillMedicine, addMedicine } = useMedSync();
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState<'all' | 'low_stock' | 'smart_bottle'>('all');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [editingMedicine, setEditingMedicine] = useState<Medicine | null>(null);
+  const [deleteConfirmMedicine, setDeleteConfirmMedicine] = useState<Medicine | null>(null);
 
   const filteredMedicines = medicines.filter(med => {
     const matchesSearch = med.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -51,7 +55,7 @@ export const MedicinesView: React.FC = () => {
 
         <button
           onClick={() => setIsAddModalOpen(true)}
-          className="min-h-[44px] px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-extrabold text-xs flex items-center gap-1.5 shadow-md shadow-emerald-700/20 transition-all"
+          className="min-h-[44px] px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-extrabold text-xs flex items-center gap-1.5 shadow-md shadow-emerald-700/20 transition-all cursor-pointer"
         >
           <Plus className="w-4 h-4 stroke-[3]" />
           <span>Add Medicine</span>
@@ -74,7 +78,7 @@ export const MedicinesView: React.FC = () => {
       <div className="flex items-center gap-1.5 p-1 bg-white border-2 border-slate-200 rounded-xl text-xs font-bold shadow-sm">
         <button
           onClick={() => setFilterType('all')}
-          className={`flex-1 py-2 rounded-lg transition-all ${
+          className={`flex-1 py-2 rounded-lg transition-all cursor-pointer ${
             filterType === 'all'
               ? 'bg-slate-900 text-white font-black shadow-sm'
               : 'text-slate-600 hover:text-slate-900'
@@ -84,7 +88,7 @@ export const MedicinesView: React.FC = () => {
         </button>
         <button
           onClick={() => setFilterType('low_stock')}
-          className={`flex-1 py-2 rounded-lg transition-all ${
+          className={`flex-1 py-2 rounded-lg transition-all cursor-pointer ${
             filterType === 'low_stock'
               ? 'bg-amber-600 text-white font-black shadow-sm'
               : 'text-slate-600 hover:text-slate-900'
@@ -94,7 +98,7 @@ export const MedicinesView: React.FC = () => {
         </button>
         <button
           onClick={() => setFilterType('smart_bottle')}
-          className={`flex-1 py-2 rounded-lg transition-all ${
+          className={`flex-1 py-2 rounded-lg transition-all cursor-pointer ${
             filterType === 'smart_bottle'
               ? 'bg-emerald-700 text-white font-black shadow-sm'
               : 'text-slate-600 hover:text-slate-900'
@@ -104,7 +108,7 @@ export const MedicinesView: React.FC = () => {
         </button>
       </div>
 
-      {/* Medicine Cards List (Senior-Friendly Bright White Cards) */}
+      {/* Medicine Cards List (Senior-Friendly Bright White Cards with Edit & Delete) */}
       <div className="space-y-3.5">
         {medicines.length === 0 ? (
           <div className="text-center py-12 bg-white rounded-3xl border-2 border-slate-200 p-6 shadow-sm space-y-3">
@@ -141,7 +145,7 @@ export const MedicinesView: React.FC = () => {
                 className="bg-white border-2 border-slate-200 rounded-2xl p-4 space-y-3.5 shadow-sm hover:border-slate-300 transition-colors"
               >
                 <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
+                  <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
                       <h3 className="text-base md:text-lg font-black text-slate-900 truncate">
                         {med.name}
@@ -164,13 +168,25 @@ export const MedicinesView: React.FC = () => {
                     )}
                   </div>
 
-                  <button
-                    onClick={() => deleteMedicine(med.id)}
-                    className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors shrink-0"
-                    title="Remove prescription"
-                  >
-                    <Trash2 className="w-5 h-5" />
-                  </button>
+                  {/* Actions: Edit & Delete buttons */}
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <button
+                      onClick={() => setEditingMedicine(med)}
+                      className="min-h-[38px] px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-900 border-2 border-indigo-200 font-extrabold text-xs flex items-center gap-1.5 transition-colors cursor-pointer shadow-sm active:scale-95"
+                      title="Edit prescription name, dosage, schedule, or notes"
+                    >
+                      <Pencil className="w-3.5 h-3.5 text-indigo-700 stroke-[2.5]" />
+                      <span>Edit</span>
+                    </button>
+
+                    <button
+                      onClick={() => setDeleteConfirmMedicine(med)}
+                      className="min-h-[38px] p-2 rounded-xl bg-slate-100 hover:bg-rose-50 text-slate-500 hover:text-rose-700 border border-slate-300 hover:border-rose-300 transition-colors cursor-pointer active:scale-95"
+                      title="Delete prescription"
+                    >
+                      <Trash2 className="w-4 h-4 text-rose-600" />
+                    </button>
+                  </div>
                 </div>
 
                 {/* Schedule Times Row */}
@@ -216,7 +232,7 @@ export const MedicinesView: React.FC = () => {
 
                   <button
                     onClick={() => refillMedicine(med.id, 30)}
-                    className="min-h-[38px] px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-900 border-2 border-slate-300 rounded-xl text-xs font-extrabold flex items-center gap-1.5 transition-all active:scale-95 shrink-0 shadow-sm"
+                    className="min-h-[38px] px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-900 border-2 border-slate-300 rounded-xl text-xs font-extrabold flex items-center gap-1.5 transition-all active:scale-95 shrink-0 shadow-sm cursor-pointer"
                   >
                     <RotateCw className="w-3.5 h-3.5 text-emerald-700 stroke-[2.5]" />
                     <span>+30 Refill</span>
@@ -228,11 +244,66 @@ export const MedicinesView: React.FC = () => {
         )}
       </div>
 
+      {/* Add Medicine Modal */}
       <AddMedicineModal
         isOpen={isAddModalOpen}
         onClose={() => setIsAddModalOpen(false)}
         onAdd={addMedicine}
       />
+
+      {/* Edit Medicine Modal */}
+      <EditMedicineModal
+        isOpen={Boolean(editingMedicine)}
+        medicine={editingMedicine}
+        onClose={() => setEditingMedicine(null)}
+        onSave={updateMedicine}
+        onDelete={deleteMedicine}
+      />
+
+      {/* Senior-Friendly Delete Confirmation Modal */}
+      {deleteConfirmMedicine && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div 
+            className="w-full max-w-sm bg-white border-2 border-slate-300 rounded-3xl p-5 shadow-2xl space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start gap-3">
+              <div className="p-2.5 rounded-2xl bg-rose-100 text-rose-800 shrink-0">
+                <AlertTriangle className="w-6 h-6 stroke-[2.5]" />
+              </div>
+              <div>
+                <h3 className="text-base font-black text-slate-900">
+                  Delete {deleteConfirmMedicine.name}?
+                </h3>
+                <p className="text-xs font-semibold text-slate-600 mt-1 leading-relaxed">
+                  This will remove this prescription and cancel all scheduled doses for it. This action cannot be undone.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-1 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setDeleteConfirmMedicine(null)}
+                className="min-h-[44px] px-4 rounded-xl text-slate-700 hover:bg-slate-100 font-bold text-xs cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  deleteMedicine(deleteConfirmMedicine.id);
+                  setDeleteConfirmMedicine(null);
+                }}
+                className="min-h-[44px] px-5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-black text-xs flex items-center gap-1.5 shadow-md shadow-rose-700/20 active:scale-95 transition-all cursor-pointer"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span>Yes, Delete</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -5,7 +5,6 @@ import {
   TrendingUp, 
   Clock, 
   Calendar, 
-  Zap, 
   Radio, 
   AlertTriangle, 
   Pill, 
@@ -23,7 +22,6 @@ export const AnalyticsView: React.FC = () => {
     liveFeed,
     isLiveSimulationActive,
     setIsLiveSimulationActive,
-    triggerSimulatedCapOpen,
     refillMedicine,
     seniorMode
   } = useMedSync();
@@ -266,13 +264,9 @@ export const AnalyticsView: React.FC = () => {
               Live Intake Activity Stream
             </h3>
           </div>
-          <button
-            onClick={() => triggerSimulatedCapOpen()}
-            className="text-xs font-bold text-emerald-800 hover:text-emerald-950 flex items-center gap-1 active:scale-95 transition-transform bg-emerald-50 px-2 py-1 rounded-lg border border-emerald-200"
-          >
-            <Zap className="w-3.5 h-3.5 text-emerald-700" />
-            <span>Simulate Sensor</span>
-          </button>
+          <span className="text-[11px] font-mono font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+            Auto Tracking
+          </span>
         </div>
 
         {/* Live Event Stream Cards */}

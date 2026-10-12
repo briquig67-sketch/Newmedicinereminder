@@ -6,7 +6,6 @@ import {
   Volume2, 
   VolumeX, 
   RotateCcw, 
-  Zap, 
   Wifi, 
   Battery, 
   Check, 
@@ -37,7 +36,6 @@ export const MobileFrame: React.FC<MobileFrameProps> = ({ children }) => {
     clearAllUserData,
     loadDemoData,
     resetToSampleData,
-    triggerSimulatedCapOpen,
     activeNotification,
     clearNotification,
     isLiveSimulationActive
@@ -120,16 +118,6 @@ export const MobileFrame: React.FC<MobileFrameProps> = ({ children }) => {
           >
             <Share2 className="w-3.5 h-3.5 text-emerald-700" />
             <span>Short Link &amp; QR</span>
-          </button>
-
-          {/* Quick Simulate Trigger */}
-          <button
-            onClick={() => triggerSimulatedCapOpen()}
-            className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center gap-1.5 transition-all shadow-sm active:scale-95"
-            title="Simulate opening the smart pill bottle cap"
-          >
-            <Zap className="w-3.5 h-3.5 fill-white" />
-            <span>Simulate Bottle Cap</span>
           </button>
 
           {/* Clear All Stored Data */}

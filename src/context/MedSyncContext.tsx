@@ -710,7 +710,20 @@ export const MedSyncProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   const updateMedicine = useCallback((id: string, updates: Partial<Medicine>) => {
     setMedicines(prev => prev.map(m => m.id === id ? { ...m, ...updates } : m));
-    showToast('Updated', 'Medicine schedule and details updated.', 'info');
+    setDoseLogs(prev => prev.map(log => {
+      if (log.medicineId === id) {
+        return {
+          ...log,
+          medicineName: updates.name ?? log.medicineName,
+          dosage: updates.dosage ?? log.dosage,
+          scheduledTime: (updates.scheduleTimes && updates.scheduleTimes.length > 0 && log.status === 'pending')
+            ? updates.scheduleTimes[0]
+            : log.scheduledTime
+        };
+      }
+      return log;
+    }));
+    showToast('Updated', 'Medicine details and schedule updated.', 'success');
   }, [showToast]);
 
   const deleteMedicine = useCallback((id: string) => {
