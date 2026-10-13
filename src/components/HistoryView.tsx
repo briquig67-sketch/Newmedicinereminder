@@ -13,6 +13,7 @@ import {
   Calendar 
 } from 'lucide-react';
 import { DoseLog } from '../types';
+import { formatTimeAmPm } from '../utils/scheduleUtils';
 
 export const HistoryView: React.FC = () => {
   const { doseLogs, analytics, medicines, currentUser } = useMedSync();
@@ -198,10 +199,15 @@ End of report.`;
                       <span className="font-mono text-xs font-bold bg-slate-100 border border-slate-300 px-2 py-0.5 rounded text-slate-800">
                         {log.dosage}
                       </span>
+                      <span className="font-extrabold text-xs bg-emerald-50 border border-emerald-300 text-emerald-950 px-2 py-0.5 rounded">
+                        Qty: {log.quantity || 1}
+                      </span>
                     </div>
 
                     <div className="flex items-center gap-2 text-slate-600 text-xs mt-1 font-medium">
-                      <span className="font-mono font-bold text-slate-800">Time: {log.scheduledTime}</span>
+                      <span className="font-mono font-bold text-slate-800">
+                        Time: {formatTimeAmPm(log.scheduledTime)}
+                      </span>
                       <span aria-hidden="true" className="text-slate-300">·</span>
                       <span className="truncate">
                         {log.source === 'smart_bottle' ? 'IoT Bottle Cap Sync' : 'Manual Patient Confirm'}

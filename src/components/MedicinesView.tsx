@@ -10,11 +10,13 @@ import {
   RotateCw, 
   Radio, 
   Package,
-  Pencil
+  Pencil,
+  CalendarDays
 } from 'lucide-react';
 import { Medicine } from '../types';
 import { AddMedicineModal } from './AddMedicineModal';
 import { EditMedicineModal } from './EditMedicineModal';
+import { getRepeatLabel, getDoseQuantityLabel, formatTimeAmPm } from '../utils/scheduleUtils';
 
 export const MedicinesView: React.FC = () => {
   const { medicines, deleteMedicine, updateMedicine, refillMedicine, addMedicine } = useMedSync();
@@ -136,7 +138,8 @@ export const MedicinesView: React.FC = () => {
         ) : (
           filteredMedicines.map(med => {
             const isLow = med.inventoryRemaining <= med.refillThreshold;
-            const pillsPerDay = med.scheduleTimes.length;
+            const qtyPerDose = med.doseQuantity || 1;
+            const pillsPerDay = qtyPerDose * (med.scheduleTimes.length || 1);
             const daysLeft = pillsPerDay > 0 ? Math.floor(med.inventoryRemaining / pillsPerDay) : 30;
 
             return (
@@ -189,19 +192,26 @@ export const MedicinesView: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Schedule Times Row */}
-                <div className="flex items-center gap-2 text-xs">
-                  <span className="text-slate-600 font-bold">Daily Time:</span>
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    {med.scheduleTimes.map((time, idx) => (
-                      <span
-                        key={idx}
-                        className="px-2.5 py-1 bg-slate-100 border border-slate-300 text-slate-900 font-mono font-bold rounded-lg text-xs flex items-center gap-1"
-                      >
-                        <Clock className="w-3.5 h-3.5 text-emerald-700 stroke-[2.5]" />
-                        {time}
-                      </span>
-                    ))}
+                {/* Key Prescription Details Badges: Qty, Repeats & Times */}
+                <div className="flex flex-wrap gap-2 text-xs">
+                  {/* Quantity to take */}
+                  <div className="px-2.5 py-1.5 bg-emerald-50 border-2 border-emerald-300 text-emerald-950 font-black rounded-xl flex items-center gap-1.5 shadow-xs">
+                    <Pill className="w-3.5 h-3.5 text-emerald-700 stroke-[2.5]" />
+                    <span>Dose: {getDoseQuantityLabel(qtyPerDose, med.form)}</span>
+                  </div>
+
+                  {/* Repeats & Interval */}
+                  <div className="px-2.5 py-1.5 bg-amber-50 border-2 border-amber-300 text-amber-950 font-black rounded-xl flex items-center gap-1.5 shadow-xs">
+                    <CalendarDays className="w-3.5 h-3.5 text-amber-700 stroke-[2.5]" />
+                    <span>Repeats: {getRepeatLabel(med)}</span>
+                  </div>
+
+                  {/* Times During Day */}
+                  <div className="px-2.5 py-1.5 bg-blue-50 border-2 border-blue-300 text-blue-950 font-black rounded-xl flex items-center gap-1.5 shadow-xs">
+                    <Clock className="w-3.5 h-3.5 text-blue-700 stroke-[2.5]" />
+                    <span>
+                      {med.scheduleTimes.map(formatTimeAmPm).join(', ')} ({med.scheduleTimes.length}x daily)
+                    </span>
                   </div>
                 </div>
 

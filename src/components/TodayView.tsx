@@ -15,12 +15,22 @@ import {
   Plus,
   Pill,
   Trash2,
-  Pencil
+  Pencil,
+  CalendarDays,
+  ChevronLeft,
+  ChevronRight,
+  Calendar
 } from 'lucide-react';
-import { DoseLog } from '../types';
-import { Medicine } from '../types';
+import { DoseLog, Medicine } from '../types';
 import { AddMedicineModal } from './AddMedicineModal';
 import { EditMedicineModal } from './EditMedicineModal';
+import { 
+  getRepeatLabel, 
+  getDoseQuantityLabel, 
+  formatTimeAmPm, 
+  getLocalTodayIso,
+  parseLocalDate 
+} from '../utils/scheduleUtils';
 
 export const TodayView: React.FC = () => {
   const {
@@ -39,28 +49,35 @@ export const TodayView: React.FC = () => {
     addMedicine,
     updateMedicine,
     deleteMedicine,
-    clearAllUserData
   } = useMedSync();
 
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editingMedicine, setEditingMedicine] = useState<Medicine | null>(null);
+  const [dateOffset, setDateOffset] = useState(0); // Offset in weeks or days for exploring repeat intervals
 
-  // Generate 7-day strip around today
+  const todayIso = useMemo(() => getLocalTodayIso(), []);
+
+  // Generate 7-day strip around the current view window
   const dateStrip = useMemo(() => {
     const dates = [];
-    const today = new Date();
-    // 3 days back to 3 days forward
-    for (let i = -3; i <= 3; i++) {
-      const d = new Date();
-      d.setDate(today.getDate() + i);
-      const iso = d.toISOString().split('T')[0];
+    const baseDate = new Date();
+    baseDate.setDate(baseDate.getDate() + dateOffset * 7);
+
+    // Show 7 days for the active window
+    for (let i = -2; i <= 5; i++) {
+      const d = new Date(baseDate);
+      d.setDate(baseDate.getDate() + i);
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      const iso = `${year}-${month}-${day}`;
       const dayName = d.toLocaleDateString('en-US', { weekday: 'short' });
       const dayNum = d.getDate();
-      const isToday = i === 0;
+      const isToday = iso === todayIso;
       dates.push({ iso, dayName, dayNum, isToday });
     }
     return dates;
-  }, []);
+  }, [dateOffset, todayIso]);
 
   // Group doses by time of day
   const groupedDoses = useMemo(() => {
@@ -111,6 +128,16 @@ export const TodayView: React.FC = () => {
   const circumference = 2 * Math.PI * radius;
   const strokeDashoffset = circumference - (adherencePercent / 100) * circumference;
 
+  const isViewingToday = selectedDate === todayIso;
+  const formattedSelectedDate = useMemo(() => {
+    const target = parseLocalDate(selectedDate);
+    return target.toLocaleDateString('en-US', {
+      weekday: 'long',
+      month: 'short',
+      day: 'numeric'
+    });
+  }, [selectedDate]);
+
   return (
     <div className="pb-24 px-4 pt-3 space-y-4 max-w-md mx-auto">
       {/* Top Patient Greeting & IoT Beacon */}
@@ -129,23 +156,27 @@ export const TodayView: React.FC = () => {
                 {currentUser.name ? currentUser.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() : 'ME'}
               </div>
             )}
-            <span className="absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full bg-emerald-600 ring-2 ring-white" />
+            <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-emerald-500 rounded-full border-2 border-white ring-1 ring-emerald-600" />
           </div>
+
           <div>
-            <h1 className="text-lg font-extrabold text-slate-900 tracking-tight leading-tight">
-              {currentUser.name ? `Good day, ${currentUser.name.split(' ')[0]}` : 'Good day'}
-            </h1>
-            <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-600">
-              <span className="text-emerald-700 font-bold">Daily Medicine Plan</span>
-              <span aria-hidden="true">·</span>
-              <span>{medicines.length} {medicines.length === 1 ? 'Prescription' : 'Prescriptions'}</span>
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                Patient Regimen
+              </span>
+              <span className="flex items-center gap-0.5 text-[10px] font-black text-emerald-800 bg-emerald-100 px-1.5 py-0.2 rounded border border-emerald-300">
+                <ShieldCheck className="w-3 h-3 text-emerald-700" />
+                <span>Verified</span>
+              </span>
             </div>
+            <h1 className="text-lg font-black text-slate-900 tracking-tight leading-tight">
+              {currentUser.name || 'Sarah Chen'}
+            </h1>
           </div>
         </div>
 
-        {/* Action Controls: Live Pill & Mobile Sign Out */}
         <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-emerald-50 border border-emerald-300 rounded-full text-emerald-800 text-[11px] font-bold">
+          <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-emerald-50 text-emerald-800 border border-emerald-300 rounded-xl text-xs font-bold">
             <span className="w-2 h-2 rounded-full bg-emerald-600 animate-pulse" />
             <span className="font-mono tracking-wide hidden sm:inline">LIVE</span>
           </div>
@@ -160,8 +191,46 @@ export const TodayView: React.FC = () => {
         </div>
       </div>
 
-      {/* Horizontal Interactive Date Carousel (High Contrast for Elderly) */}
-      <div className="bg-white border-2 border-slate-200 rounded-2xl p-2.5 shadow-sm">
+      {/* Date Carousel & Navigation (Browse repeat days like every 3rd day, weekly) */}
+      <div className="bg-white border-2 border-slate-200 rounded-2xl p-2.5 shadow-sm space-y-2">
+        <div className="flex items-center justify-between px-1 text-xs">
+          <div className="flex items-center gap-1.5 font-black text-slate-900">
+            <Calendar className="w-3.5 h-3.5 text-emerald-700" />
+            <span>{isViewingToday ? 'Today' : formattedSelectedDate}</span>
+          </div>
+
+          <div className="flex items-center gap-1.5">
+            {!isViewingToday && (
+              <button
+                onClick={() => {
+                  setSelectedDate(todayIso);
+                  setDateOffset(0);
+                }}
+                className="px-2 py-0.5 bg-emerald-100 hover:bg-emerald-200 text-emerald-900 font-extrabold text-[11px] rounded-lg border border-emerald-300 transition-colors cursor-pointer"
+              >
+                Jump to Today
+              </button>
+            )}
+
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setDateOffset(prev => prev - 1)}
+                className="p-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors cursor-pointer"
+                title="Previous days"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => setDateOffset(prev => prev + 1)}
+                className="p-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors cursor-pointer"
+                title="Next days"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+
         <div className="flex items-center justify-between gap-1.5 overflow-x-auto no-scrollbar">
           {dateStrip.map((item) => {
             const isSelected = item.iso === selectedDate;
@@ -169,10 +238,10 @@ export const TodayView: React.FC = () => {
               <button
                 key={item.iso}
                 onClick={() => setSelectedDate(item.iso)}
-                className={`flex-1 py-2.5 px-1.5 rounded-xl flex flex-col items-center justify-center transition-all duration-200 min-w-[46px] min-h-[54px] ${
+                className={`flex-1 py-2 px-1 rounded-xl flex flex-col items-center justify-center transition-all duration-200 min-w-[44px] min-h-[52px] cursor-pointer ${
                   isSelected
                     ? 'bg-emerald-700 text-white font-extrabold shadow-md ring-2 ring-emerald-500'
-                    : 'text-slate-700 hover:text-slate-950 hover:bg-slate-100 bg-slate-50'
+                    : 'text-slate-700 hover:text-slate-950 hover:bg-slate-100 bg-slate-50 border border-slate-200'
                 }`}
               >
                 <span className={`text-[11px] uppercase font-bold tracking-tight ${isSelected ? 'text-emerald-100' : 'text-slate-600'}`}>
@@ -196,17 +265,19 @@ export const TodayView: React.FC = () => {
           <div className="flex-1">
             <div className="flex items-center gap-1.5 text-xs text-emerald-800 font-bold uppercase tracking-wider mb-1">
               <Sparkles className="w-4 h-4 text-emerald-600" />
-              <span>Today's Progress</span>
+              <span>{isViewingToday ? "Today's Progress" : `${formattedSelectedDate} Schedule`}</span>
             </div>
             <div className="text-3xl font-extrabold text-slate-900 tracking-tight font-mono tabular-nums">
               {takenDosesCount} <span className="text-slate-500 text-xl font-semibold">of {totalDosesCount} taken</span>
             </div>
             <p className="text-xs font-semibold text-slate-700 mt-1.5 leading-snug">
-              {adherencePercent === 100
-                ? 'All medicines taken for today! Excellent job.'
+              {totalDosesCount === 0
+                ? 'No doses scheduled on this day.'
+                : adherencePercent === 100
+                ? 'All scheduled medicines taken! Excellent job.'
                 : nextPendingDose
-                ? `Next: ${nextPendingDose.medicineName} at ${nextPendingDose.scheduledTime}`
-                : 'Follow your schedule to maintain health.'}
+                ? `Next: ${nextPendingDose.medicineName} (${nextPendingDose.quantity} units) at ${formatTimeAmPm(nextPendingDose.scheduledTime)}`
+                : 'Stay consistent with your prescribed plan.'}
             </p>
           </div>
 
@@ -269,42 +340,7 @@ export const TodayView: React.FC = () => {
         </div>
       </div>
 
-      {/* Smart Bottle Live Sync Card (when connected) */}
-      {connectedBottles.length > 0 && (
-        <div className="bg-white border-2 border-slate-200 rounded-2xl p-3.5 flex items-center justify-between gap-3 shadow-sm">
-          <div className="flex items-center gap-3">
-            <img
-              src="/src/assets/images/smart_pill_bottle_1791152438379.jpg"
-              alt="Smart Bottle"
-              referrerPolicy="no-referrer"
-              className="w-12 h-12 rounded-xl object-cover ring-1 ring-slate-300 shrink-0"
-              onError={(e) => {
-                e.currentTarget.style.display = 'none';
-              }}
-            />
-            <div>
-              <div className="flex items-center gap-1.5">
-                <span className="text-xs font-bold text-slate-900">Smart Pill Bottle Connected</span>
-                <span className="w-2 h-2 rounded-full bg-emerald-600 animate-pulse" />
-              </div>
-              <div className="flex items-center gap-2 text-xs font-medium text-slate-600 mt-0.5">
-                <span>{connectedBottles.length} Cap Sensors Active</span>
-                <span aria-hidden="true">·</span>
-                <span className="flex items-center gap-1 font-semibold text-emerald-800">
-                  <BatteryMedium className="w-3.5 h-3.5 text-emerald-700" /> 92%
-                </span>
-              </div>
-            </div>
-          </div>
-
-          <div className="px-3 py-1.5 bg-emerald-50 text-emerald-800 border border-emerald-300 rounded-xl text-xs font-bold flex items-center gap-1.5 shrink-0">
-            <span className="w-2 h-2 rounded-full bg-emerald-600 animate-pulse" />
-            <span>Synced</span>
-          </div>
-        </div>
-      )}
-
-      {/* Scheduled Dose Timeline List (Senior-Friendly Card Design) */}
+      {/* Scheduled Dose Timeline List */}
       <div className="space-y-4">
         {medicines.length === 0 ? (
           <div className="text-center py-10 bg-white rounded-3xl border-2 border-slate-200 p-6 shadow-sm space-y-3.5">
@@ -314,7 +350,7 @@ export const TodayView: React.FC = () => {
             <div>
               <h3 className="text-lg font-black text-slate-900">Your Medicine Cabinet is Ready</h3>
               <p className="text-xs font-semibold text-slate-600 mt-1 max-w-xs mx-auto">
-                No medications are added yet. Tap below to enter your first prescription or vitamin to start tracking your daily doses.
+                No medications are added yet. Tap below to enter your first prescription, daily quantity, times, and repeat intervals.
               </p>
             </div>
             <button
@@ -326,11 +362,11 @@ export const TodayView: React.FC = () => {
             </button>
           </div>
         ) : todayDoses.length === 0 ? (
-          <div className="text-center py-10 bg-white rounded-2xl border-2 border-slate-200 p-6 shadow-sm">
-            <CheckCircle2 className="w-12 h-12 text-emerald-600 mx-auto mb-2" />
-            <h3 className="text-base font-bold text-slate-900">No medicines scheduled for this day</h3>
-            <p className="text-xs font-medium text-slate-600 mt-1">
-              Select another day on the calendar or add a new scheduled dose time.
+          <div className="text-center py-10 bg-white rounded-2xl border-2 border-slate-200 p-6 shadow-sm space-y-2">
+            <CheckCircle2 className="w-12 h-12 text-emerald-600 mx-auto" />
+            <h3 className="text-base font-bold text-slate-900">No medicines scheduled for {formattedSelectedDate}</h3>
+            <p className="text-xs font-medium text-slate-600 max-w-xs mx-auto">
+              Any medications with interval repeats (such as "every 3rd day" or "weekly") will automatically appear on their scheduled days.
             </p>
           </div>
         ) : (
@@ -357,21 +393,24 @@ export const TodayView: React.FC = () => {
                 </div>
 
                 <div className="space-y-3">
-                  {dosesInPeriod.map((dose) => (
-                    <DoseCard
-                      key={dose.id}
-                      dose={dose}
-                      seniorMode={seniorMode}
-                      onTake={() => takeDose(dose.id, 'manual')}
-                      onSkip={() => skipDose(dose.id, 'Patient skipped dose')}
-                      onSnooze={() => snoozeDose(dose.id, 15)}
-                      onUndo={() => undoDose(dose.id)}
-                      onEdit={() => {
-                        const med = medicines.find(m => m.id === dose.medicineId);
-                        if (med) setEditingMedicine(med);
-                      }}
-                    />
-                  ))}
+                  {dosesInPeriod.map((dose) => {
+                    const matchedMed = medicines.find(m => m.id === dose.medicineId);
+                    return (
+                      <DoseCard
+                        key={dose.id}
+                        dose={dose}
+                        medicine={matchedMed}
+                        seniorMode={seniorMode}
+                        onTake={() => takeDose(dose.id, 'manual')}
+                        onSkip={() => skipDose(dose.id, 'Patient skipped dose')}
+                        onSnooze={() => snoozeDose(dose.id, 15)}
+                        onUndo={() => undoDose(dose.id)}
+                        onEdit={() => {
+                          if (matchedMed) setEditingMedicine(matchedMed);
+                        }}
+                      />
+                    );
+                  })}
                 </div>
               </div>
             );
@@ -396,9 +435,10 @@ export const TodayView: React.FC = () => {
   );
 };
 
-// Sub-component: Senior-Friendly Dose Card
+// Sub-component: Senior-Friendly Dose Card with Quantity & Repeat Interval
 interface DoseCardProps {
   dose: DoseLog;
+  medicine?: Medicine;
   seniorMode: boolean;
   onTake: () => void;
   onSkip: () => void;
@@ -409,6 +449,7 @@ interface DoseCardProps {
 
 const DoseCard: React.FC<DoseCardProps> = ({
   dose,
+  medicine,
   seniorMode,
   onTake,
   onSkip,
@@ -420,6 +461,9 @@ const DoseCard: React.FC<DoseCardProps> = ({
   const isSkipped = dose.status === 'skipped';
   const isSnoozed = dose.status === 'snoozed';
   const isPending = dose.status === 'pending';
+
+  const qty = dose.quantity || medicine?.doseQuantity || 1;
+  const form = medicine?.form || 'tablet';
 
   return (
     <div
@@ -436,7 +480,7 @@ const DoseCard: React.FC<DoseCardProps> = ({
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <h4 className="text-base md:text-lg font-extrabold text-slate-900 tracking-tight">
+            <h4 className="text-base md:text-lg font-black text-slate-900 tracking-tight">
               {dose.medicineName}
             </h4>
             <span className="text-xs font-mono font-bold px-2 py-0.5 rounded-md bg-slate-100 text-slate-800 border border-slate-300 shrink-0">
@@ -447,30 +491,49 @@ const DoseCard: React.FC<DoseCardProps> = ({
                 type="button"
                 onClick={onEdit}
                 className="p-1 rounded-lg text-slate-400 hover:text-indigo-700 hover:bg-indigo-50 transition-colors cursor-pointer"
-                title="Edit medicine details"
+                title="Edit prescription details"
               >
                 <Pencil className="w-3.5 h-3.5" />
               </button>
             )}
           </div>
 
-          <div className="flex items-center gap-2 text-xs font-semibold text-slate-700 mt-1.5">
-            <span className="flex items-center gap-1 font-mono font-bold text-slate-900 text-sm">
-              <Clock className="w-3.5 h-3.5 text-emerald-700 stroke-[2.5]" />
-              {dose.scheduledTime}
-            </span>
-            <span aria-hidden="true" className="text-slate-400">·</span>
-            <span className="truncate">
-              {dose.source === 'smart_bottle' ? 'Smart Bottle Cap Synced' : 'Take with water'}
-            </span>
+          {/* Time & Quantity to Take Row */}
+          <div className="flex items-center gap-2 flex-wrap mt-2">
+            {/* Scheduled Time */}
+            <div className="flex items-center gap-1 font-mono font-black text-slate-900 text-sm bg-slate-100 px-2 py-0.5 rounded-lg border border-slate-300">
+              <Clock className="w-3.5 h-3.5 text-blue-700 stroke-[2.5]" />
+              <span>{formatTimeAmPm(dose.scheduledTime)}</span>
+            </div>
+
+            {/* Quantity to take */}
+            <div className="flex items-center gap-1 font-bold text-xs bg-emerald-100 text-emerald-950 px-2 py-0.5 rounded-lg border border-emerald-300">
+              <Pill className="w-3.5 h-3.5 text-emerald-700 stroke-[2.5]" />
+              <span>Take {getDoseQuantityLabel(qty, form)}</span>
+            </div>
+
+            {/* Repeat Interval Badge (e.g. Every 3rd day, Every week) */}
+            {medicine && (
+              <div className="flex items-center gap-1 text-[11px] font-bold bg-amber-100 text-amber-950 px-2 py-0.5 rounded-lg border border-amber-300">
+                <CalendarDays className="w-3 h-3 text-amber-800" />
+                <span>{getRepeatLabel(medicine)}</span>
+              </div>
+            )}
           </div>
+
+          {/* Instructions Note if available */}
+          {medicine?.instruction && (
+            <p className="text-xs font-medium text-slate-600 mt-1.5 truncate">
+              {medicine.instruction}
+            </p>
+          )}
 
           {/* Status Metadata line in Clear Large Text */}
           {isTaken && (
-            <div className="flex items-center gap-1.5 mt-2.5 text-xs text-emerald-800 font-extrabold bg-emerald-100/80 px-2.5 py-1 rounded-lg w-fit border border-emerald-300">
+            <div className="flex items-center gap-1.5 mt-2.5 text-xs text-emerald-800 font-extrabold bg-emerald-100/90 px-2.5 py-1 rounded-lg w-fit border border-emerald-300">
               <Check className="w-4 h-4 stroke-[3]" />
               <span>
-                Taken on schedule{' '}
+                Taken on schedule ({getDoseQuantityLabel(qty, form)}){' '}
                 {dose.varianceMinutes !== undefined && (
                   <span className="font-mono text-[11px] font-bold">
                     ({dose.varianceMinutes > 0 ? `+${dose.varianceMinutes}m late` : `${Math.abs(dose.varianceMinutes)}m early`})
@@ -501,24 +564,24 @@ const DoseCard: React.FC<DoseCardProps> = ({
             <>
               <button
                 onClick={onSnooze}
-                className="min-h-[44px] min-w-[44px] rounded-xl bg-amber-50 hover:bg-amber-100 active:scale-95 text-amber-900 border border-amber-300 flex items-center justify-center transition-colors shadow-sm"
+                className="min-h-[44px] min-w-[44px] rounded-xl bg-amber-50 hover:bg-amber-100 active:scale-95 text-amber-900 border border-amber-300 flex items-center justify-center transition-colors shadow-sm cursor-pointer"
                 title="Snooze 15 minutes"
               >
                 <Clock className="w-5 h-5 text-amber-700 stroke-[2.5]" />
               </button>
               <button
                 onClick={onSkip}
-                className="min-h-[44px] min-w-[44px] rounded-xl bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-700 border border-slate-300 flex items-center justify-center transition-colors shadow-sm"
+                className="min-h-[44px] min-w-[44px] rounded-xl bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-700 border border-slate-300 flex items-center justify-center transition-colors shadow-sm cursor-pointer"
                 title="Skip dose"
               >
                 <BellOff className="w-5 h-5 stroke-[2]" />
               </button>
               <button
                 onClick={onTake}
-                className="min-h-[48px] px-5 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-extrabold text-sm flex items-center gap-2 transition-all shadow-md shadow-emerald-700/20"
+                className="min-h-[48px] px-4 sm:px-5 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-extrabold text-sm flex items-center gap-2 transition-all shadow-md shadow-emerald-700/20 cursor-pointer"
               >
                 <Check className="w-5 h-5 stroke-[3]" />
-                <span>Take Dose</span>
+                <span>Take {qty > 1 ? `${qty} ${form}s` : `${form}`}</span>
               </button>
             </>
           )}
@@ -526,17 +589,17 @@ const DoseCard: React.FC<DoseCardProps> = ({
           {isSnoozed && (
             <button
               onClick={onTake}
-              className="min-h-[48px] px-5 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-extrabold text-sm flex items-center gap-2 transition-all shadow-md"
+              className="min-h-[48px] px-5 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-extrabold text-sm flex items-center gap-2 transition-all shadow-md cursor-pointer"
             >
               <Check className="w-5 h-5 stroke-[3]" />
-              <span>Take Now</span>
+              <span>Take Now ({qty})</span>
             </button>
           )}
 
           {(isTaken || isSkipped) && (
             <button
               onClick={onUndo}
-              className="min-h-[40px] px-3 rounded-xl bg-white hover:bg-slate-100 active:scale-95 text-slate-700 border border-slate-300 text-xs font-bold flex items-center gap-1.5 transition-colors shadow-sm"
+              className="min-h-[40px] px-3 rounded-xl bg-white hover:bg-slate-100 active:scale-95 text-slate-700 border border-slate-300 text-xs font-bold flex items-center gap-1.5 transition-colors shadow-sm cursor-pointer"
             >
               <RotateCcw className="w-3.5 h-3.5" />
               <span>Undo</span>

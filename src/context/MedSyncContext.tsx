@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
 import { Medicine, DoseLog, LiveTelemetryEvent, AnalyticsSummary, UserProfile } from '../types';
+import { isMedicineScheduledOnDate } from '../utils/scheduleUtils';
 
 interface MedSyncContextType {
   medicines: Medicine[];
@@ -89,11 +90,14 @@ const INITIAL_MEDICINES: Medicine[] = [
     name: 'Metformin HCl',
     genericName: 'Glucophage',
     dosage: '500 mg',
+    doseQuantity: 1,
     form: 'tablet',
     color: 'emerald',
     instruction: 'Take with morning and evening meal',
     scheduleTimes: ['08:00', '20:00'],
     daysOfWeek: [0, 1, 2, 3, 4, 5, 6],
+    frequencyType: 'daily',
+    startDate: '2026-10-01',
     inventoryRemaining: 24,
     inventoryTotal: 60,
     refillThreshold: 8,
@@ -109,11 +113,14 @@ const INITIAL_MEDICINES: Medicine[] = [
     name: 'Lisinopril',
     genericName: 'Prinivil',
     dosage: '10 mg',
+    doseQuantity: 1,
     form: 'tablet',
     color: 'blue',
     instruction: 'Take in the morning on empty stomach',
     scheduleTimes: ['08:00'],
     daysOfWeek: [0, 1, 2, 3, 4, 5, 6],
+    frequencyType: 'daily',
+    startDate: '2026-10-01',
     inventoryRemaining: 18,
     inventoryTotal: 30,
     refillThreshold: 5,
@@ -129,11 +136,14 @@ const INITIAL_MEDICINES: Medicine[] = [
     name: 'Atorvastatin',
     genericName: 'Lipitor',
     dosage: '20 mg',
+    doseQuantity: 1,
     form: 'tablet',
     color: 'indigo',
     instruction: 'Take at night before bed',
     scheduleTimes: ['21:00'],
     daysOfWeek: [0, 1, 2, 3, 4, 5, 6],
+    frequencyType: 'daily',
+    startDate: '2026-10-01',
     inventoryRemaining: 6, // Low inventory alert!
     inventoryTotal: 30,
     refillThreshold: 7,
@@ -147,11 +157,14 @@ const INITIAL_MEDICINES: Medicine[] = [
     name: 'Vitamin D3 & K2',
     genericName: 'Cholecalciferol',
     dosage: '2,000 IU',
+    doseQuantity: 2,
     form: 'capsule',
     color: 'amber',
     instruction: 'Take with lunchtime meal containing fat',
     scheduleTimes: ['12:30'],
     daysOfWeek: [0, 1, 2, 3, 4, 5, 6],
+    frequencyType: 'daily',
+    startDate: '2026-10-01',
     inventoryRemaining: 42,
     inventoryTotal: 90,
     refillThreshold: 14,
@@ -164,20 +177,24 @@ const INITIAL_MEDICINES: Medicine[] = [
   },
   {
     id: 'med-5',
-    name: 'Sertraline HCl',
-    genericName: 'Zoloft',
-    dosage: '50 mg',
-    form: 'tablet',
+    name: 'CoQ10 Heart Support',
+    genericName: 'Ubiquinone',
+    dosage: '100 mg',
+    doseQuantity: 1,
+    form: 'capsule',
     color: 'rose',
-    instruction: 'Take once daily after breakfast',
-    scheduleTimes: ['08:30'],
+    instruction: 'Take every 3rd day with meal',
+    scheduleTimes: ['09:00'],
     daysOfWeek: [0, 1, 2, 3, 4, 5, 6],
-    inventoryRemaining: 14,
+    frequencyType: 'every_x_days',
+    intervalDays: 3,
+    startDate: '2026-10-01',
+    inventoryRemaining: 20,
     inventoryTotal: 30,
     refillThreshold: 5,
     smartBottleConnected: false,
-    prescribedFor: 'Mood & Serotonin Balance',
-    doctor: 'Dr. Alan Harper',
+    prescribedFor: 'Cellular & Cardiovascular Energy',
+    doctor: 'Dr. Evelyn Reed',
     active: true,
   }
 ];
@@ -197,10 +214,9 @@ const generateInitialDoseLogs = (meds: Medicine[]): DoseLog[] => {
     const targetDate = new Date();
     targetDate.setDate(today.getDate() - i);
     const dateStr = getIsoDate(targetDate);
-    const dayOfWeek = targetDate.getDay();
 
     meds.forEach(med => {
-      if (!med.daysOfWeek.includes(dayOfWeek)) return;
+      if (!isMedicineScheduledOnDate(med, dateStr)) return;
 
       med.scheduleTimes.forEach((timeStr, tIndex) => {
         const id = `dose-${dateStr}-${med.id}-${tIndex}`;
@@ -230,6 +246,7 @@ const generateInitialDoseLogs = (meds: Medicine[]): DoseLog[] => {
             medicineId: med.id,
             medicineName: med.name,
             dosage: med.dosage,
+            quantity: med.doseQuantity || 1,
             scheduledTime: timeStr,
             date: dateStr,
             status,
@@ -265,6 +282,7 @@ const generateInitialDoseLogs = (meds: Medicine[]): DoseLog[] => {
             medicineId: med.id,
             medicineName: med.name,
             dosage: med.dosage,
+            quantity: med.doseQuantity || 1,
             scheduledTime: timeStr,
             date: dateStr,
             status,
@@ -512,12 +530,36 @@ export const MedSyncProvider: React.FC<{ children: React.ReactNode }> = ({ child
     return () => clearTimeout(timer);
   }, []);
 
-  // Today's Doses for selectedDate
+  // Today's Doses for selectedDate (synthesizing schedule for repeat intervals like every 3rd day, etc.)
   const todayDoses = useMemo(() => {
-    return doseLogs
-      .filter(l => l.date === selectedDate)
-      .sort((a, b) => a.scheduledTime.localeCompare(b.scheduledTime));
-  }, [doseLogs, selectedDate]);
+    const existingDateLogs = doseLogs.filter(l => l.date === selectedDate);
+    const existingKeys = new Set(existingDateLogs.map(l => `${l.medicineId}-${l.scheduledTime}`));
+
+    const generatedForDate: DoseLog[] = [];
+    medicines.forEach(med => {
+      if (isMedicineScheduledOnDate(med, selectedDate)) {
+        med.scheduleTimes.forEach((time, idx) => {
+          const key = `${med.id}-${time}`;
+          if (!existingKeys.has(key)) {
+            generatedForDate.push({
+              id: `dose-${selectedDate}-${med.id}-${idx}`,
+              medicineId: med.id,
+              medicineName: med.name,
+              dosage: med.dosage,
+              quantity: med.doseQuantity || 1,
+              scheduledTime: time,
+              date: selectedDate,
+              status: 'pending',
+              source: med.smartBottleConnected ? 'smart_bottle' : 'manual'
+            });
+          }
+        });
+      }
+    });
+
+    const all = [...existingDateLogs, ...generatedForDate];
+    return all.sort((a, b) => a.scheduledTime.localeCompare(b.scheduledTime));
+  }, [doseLogs, medicines, selectedDate]);
 
   // Analytics Computation
   const analytics = useMemo<AnalyticsSummary>(() => {
@@ -568,36 +610,57 @@ export const MedSyncProvider: React.FC<{ children: React.ReactNode }> = ({ child
     const nowTimeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
     const nowTimestamp = now.toISOString();
 
-    setDoseLogs(prev => {
-      return prev.map(log => {
-        if (log.id === doseId) {
-          // Calculate minutes difference
-          const [schedH, schedM] = log.scheduledTime.split(':').map(Number);
-          const [nowH, nowM] = nowTimeStr.split(':').map(Number);
-          const schedMinutes = schedH * 60 + schedM;
-          const currentMinutes = nowH * 60 + nowM;
-          const variance = currentMinutes - schedMinutes;
+    const targetLog = doseLogs.find(l => l.id === doseId) || todayDoses.find(l => l.id === doseId);
 
-          return {
-            ...log,
+    setDoseLogs(prev => {
+      const exists = prev.some(l => l.id === doseId);
+      if (exists) {
+        return prev.map(log => {
+          if (log.id === doseId) {
+            const [schedH, schedM] = log.scheduledTime.split(':').map(Number);
+            const [nowH, nowM] = nowTimeStr.split(':').map(Number);
+            const schedMinutes = schedH * 60 + schedM;
+            const currentMinutes = nowH * 60 + nowM;
+            const variance = currentMinutes - schedMinutes;
+
+            return {
+              ...log,
+              status: 'taken',
+              takenAt: nowTimestamp,
+              varianceMinutes: variance,
+              source
+            };
+          }
+          return log;
+        });
+      } else if (targetLog) {
+        const [schedH, schedM] = targetLog.scheduledTime.split(':').map(Number);
+        const [nowH, nowM] = nowTimeStr.split(':').map(Number);
+        const schedMinutes = schedH * 60 + schedM;
+        const currentMinutes = nowH * 60 + nowM;
+        const variance = currentMinutes - schedMinutes;
+
+        return [
+          ...prev,
+          {
+            ...targetLog,
             status: 'taken',
             takenAt: nowTimestamp,
             varianceMinutes: variance,
             source
-          };
-        }
-        return log;
-      });
+          }
+        ];
+      }
+      return prev;
     });
 
-    // Reduce inventory for that medicine
-    const targetLog = doseLogs.find(l => l.id === doseId);
     if (targetLog) {
+      const qtyTaken = targetLog.quantity || 1;
       setMedicines(prev => prev.map(m => {
         if (m.id === targetLog.medicineId) {
           return {
             ...m,
-            inventoryRemaining: Math.max(0, m.inventoryRemaining - 1)
+            inventoryRemaining: Math.max(0, m.inventoryRemaining - qtyTaken)
           };
         }
         return m;
@@ -608,7 +671,7 @@ export const MedSyncProvider: React.FC<{ children: React.ReactNode }> = ({ child
         id: `evt-${Date.now()}`,
         timestamp: now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         type: 'dose_logged',
-        medicineName: `${targetLog.medicineName} ${targetLog.dosage}`,
+        medicineName: `${targetLog.medicineName} (${qtyTaken} units)`,
         message: source === 'smart_bottle' ? 'Verified by Smart Cap IoT telemetry' : 'Logged via patient mobile confirmation',
         varianceText: 'Confirmed'
       };
@@ -616,17 +679,26 @@ export const MedSyncProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
       showToast(
         'Dose Logged',
-        `${targetLog.medicineName} (${targetLog.dosage}) marked as taken on schedule.`,
+        `${targetLog.medicineName} (Qty: ${qtyTaken}) marked as taken on schedule.`,
         'success'
       );
     }
 
     if (soundEnabled) playChime('take');
-  }, [doseLogs, soundEnabled, showToast]);
+  }, [doseLogs, todayDoses, soundEnabled, showToast]);
 
   const skipDose = useCallback((doseId: string, reason = 'Skipped by patient') => {
-    const targetLog = doseLogs.find(l => l.id === doseId);
-    setDoseLogs(prev => prev.map(l => l.id === doseId ? { ...l, status: 'skipped', note: reason } : l));
+    const targetLog = doseLogs.find(l => l.id === doseId) || todayDoses.find(l => l.id === doseId);
+
+    setDoseLogs(prev => {
+      const exists = prev.some(l => l.id === doseId);
+      if (exists) {
+        return prev.map(l => l.id === doseId ? { ...l, status: 'skipped', note: reason } : l);
+      } else if (targetLog) {
+        return [...prev, { ...targetLog, status: 'skipped', note: reason }];
+      }
+      return prev;
+    });
 
     if (targetLog) {
       const newEvent: LiveTelemetryEvent = {
@@ -647,11 +719,20 @@ export const MedSyncProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
 
     if (soundEnabled) playChime('skip');
-  }, [doseLogs, soundEnabled, showToast]);
+  }, [doseLogs, todayDoses, soundEnabled, showToast]);
 
   const snoozeDose = useCallback((doseId: string, minutes = 15) => {
-    const targetLog = doseLogs.find(l => l.id === doseId);
-    setDoseLogs(prev => prev.map(l => l.id === doseId ? { ...l, status: 'snoozed', note: `Snoozed +${minutes}m` } : l));
+    const targetLog = doseLogs.find(l => l.id === doseId) || todayDoses.find(l => l.id === doseId);
+
+    setDoseLogs(prev => {
+      const exists = prev.some(l => l.id === doseId);
+      if (exists) {
+        return prev.map(l => l.id === doseId ? { ...l, status: 'snoozed', note: `Snoozed +${minutes}m` } : l);
+      } else if (targetLog) {
+        return [...prev, { ...targetLog, status: 'snoozed', note: `Snoozed +${minutes}m` }];
+      }
+      return prev;
+    });
 
     if (targetLog) {
       showToast(
@@ -661,11 +742,12 @@ export const MedSyncProvider: React.FC<{ children: React.ReactNode }> = ({ child
       );
     }
     if (soundEnabled) playChime('alert');
-  }, [doseLogs, soundEnabled, showToast]);
+  }, [doseLogs, todayDoses, soundEnabled, showToast]);
 
   const undoDose = useCallback((doseId: string) => {
     const targetLog = doseLogs.find(l => l.id === doseId);
     const wasTaken = targetLog?.status === 'taken';
+    const qtyTaken = targetLog?.quantity || 1;
 
     setDoseLogs(prev => prev.map(l => l.id === doseId ? {
       ...l,
@@ -675,7 +757,7 @@ export const MedSyncProvider: React.FC<{ children: React.ReactNode }> = ({ child
     } : l));
 
     if (wasTaken && targetLog) {
-      setMedicines(prev => prev.map(m => m.id === targetLog.medicineId ? { ...m, inventoryRemaining: m.inventoryRemaining + 1 } : m));
+      setMedicines(prev => prev.map(m => m.id === targetLog.medicineId ? { ...m, inventoryRemaining: m.inventoryRemaining + qtyTaken } : m));
     }
 
     showToast('Action Undone', 'Dose status reset to pending.', 'info');
@@ -683,20 +765,26 @@ export const MedSyncProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   const addMedicine = useCallback((newMed: Omit<Medicine, 'id'>) => {
     const id = `med-${Date.now()}`;
-    const medicine: Medicine = { ...newMed, id };
+    const medicine: Medicine = {
+      ...newMed,
+      id,
+      doseQuantity: Math.max(1, newMed.doseQuantity || 1),
+      frequencyType: newMed.frequencyType || 'daily',
+      startDate: newMed.startDate || getIsoDate()
+    };
     setMedicines(prev => [...prev, medicine]);
 
-    // Also populate today's dose log for this medicine if scheduled for today
+    // Populate dose log for today if scheduled for today
     const today = new Date();
     const dateStr = getIsoDate(today);
-    const dayOfWeek = today.getDay();
 
-    if (medicine.daysOfWeek.includes(dayOfWeek)) {
+    if (isMedicineScheduledOnDate(medicine, dateStr)) {
       const newDoses: DoseLog[] = medicine.scheduleTimes.map((time, idx) => ({
         id: `dose-${dateStr}-${id}-${idx}`,
         medicineId: id,
         medicineName: medicine.name,
         dosage: medicine.dosage,
+        quantity: medicine.doseQuantity || 1,
         scheduledTime: time,
         date: dateStr,
         status: 'pending',
@@ -709,21 +797,45 @@ export const MedSyncProvider: React.FC<{ children: React.ReactNode }> = ({ child
   }, [showToast]);
 
   const updateMedicine = useCallback((id: string, updates: Partial<Medicine>) => {
-    setMedicines(prev => prev.map(m => m.id === id ? { ...m, ...updates } : m));
-    setDoseLogs(prev => prev.map(log => {
-      if (log.medicineId === id) {
-        return {
-          ...log,
-          medicineName: updates.name ?? log.medicineName,
-          dosage: updates.dosage ?? log.dosage,
-          scheduledTime: (updates.scheduleTimes && updates.scheduleTimes.length > 0 && log.status === 'pending')
-            ? updates.scheduleTimes[0]
-            : log.scheduledTime
-        };
+    setMedicines(prev => {
+      const updatedList = prev.map(m => m.id === id ? { ...m, ...updates } : m);
+      const targetMed = updatedList.find(m => m.id === id);
+
+      if (targetMed) {
+        setDoseLogs(prevLogs => {
+          return prevLogs
+            .filter(log => {
+              // Only filter pending logs for this medicine; preserve historical taken/skipped logs
+              if (log.medicineId === id && log.status === 'pending') {
+                // If it is no longer scheduled on that date, remove stale pending log
+                if (!isMedicineScheduledOnDate(targetMed, log.date)) {
+                  return false;
+                }
+                // If the scheduled time was removed from scheduleTimes, remove stale pending log
+                if (!targetMed.scheduleTimes.includes(log.scheduledTime)) {
+                  return false;
+                }
+              }
+              return true;
+            })
+            .map(log => {
+              if (log.medicineId === id) {
+                return {
+                  ...log,
+                  medicineName: targetMed.name,
+                  dosage: targetMed.dosage,
+                  quantity: targetMed.doseQuantity || 1,
+                };
+              }
+              return log;
+            });
+        });
       }
-      return log;
-    }));
-    showToast('Updated', 'Medicine details and schedule updated.', 'success');
+
+      return updatedList;
+    });
+
+    showToast('Prescription Updated', 'Medicine schedule, intake quantity, and times saved.', 'success');
   }, [showToast]);
 
   const deleteMedicine = useCallback((id: string) => {
