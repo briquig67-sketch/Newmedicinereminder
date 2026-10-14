@@ -24,6 +24,7 @@ import {
 import { DoseLog, Medicine } from '../types';
 import { AddMedicineModal } from './AddMedicineModal';
 import { EditMedicineModal } from './EditMedicineModal';
+import { PWAInstallButton } from './PWAInstallButton';
 import { 
   getRepeatLabel, 
   getDoseQuantityLabel, 
@@ -190,6 +191,9 @@ export const TodayView: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {/* PWA Mobile App Install Banner */}
+      <PWAInstallButton variant="banner" />
 
       {/* Date Carousel & Navigation (Browse repeat days like every 3rd day, weekly) */}
       <div className="bg-white border-2 border-slate-200 rounded-2xl p-2.5 shadow-sm space-y-2">

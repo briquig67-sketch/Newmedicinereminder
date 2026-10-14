@@ -18,6 +18,8 @@ import {
   Share2
 } from 'lucide-react';
 import { ShareAppModal } from './ShareAppModal';
+import { PWAInstallButton } from './PWAInstallButton';
+import { OfflineIndicator } from './OfflineIndicator';
 
 interface MobileFrameProps {
   children: React.ReactNode;
@@ -109,6 +111,9 @@ export const MobileFrame: React.FC<MobileFrameProps> = ({ children }) => {
           >
             {soundEnabled ? <Volume2 className="w-4 h-4 text-emerald-700" /> : <VolumeX className="w-4 h-4 text-slate-400" />}
           </button>
+
+          {/* PWA Mobile App Install Button */}
+          <PWAInstallButton variant="header" />
 
           {/* Share App & QR Short Link */}
           <button
@@ -255,6 +260,8 @@ export const MobileFrame: React.FC<MobileFrameProps> = ({ children }) => {
         isOpen={isShareModalOpen}
         onClose={() => setIsShareModalOpen(false)}
       />
+
+      <OfflineIndicator />
     </div>
   );
 };
